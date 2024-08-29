@@ -1,0 +1,60 @@
+---
+- hosts: all
+  gather_facts: False
+  become: True
+  vars:
+    nginx_path: /etc/nginx/nginx.conf
+    web_root: /usr/share/nginx/html/
+    ssl_path: /etc/nginx/ssl
+
+  tasks:
+    - name: Install Nginx
+      dnf:
+        name: nginx
+        state: present
+
+    - name: Remove standart html directory
+      file:
+        path: "{{ web_root }}"
+        state: absent
+
+    - name: Remove conf file nginx
+      file: 
+        path: "{{ nginx_path }}"
+        state: absent
+
+    - name: Copy nginx.conf
+      copy:
+        src: ./templates/nginx.conf
+        dest: "{{ nginx_path }}"
+      notify: Restart Nginx
+    
+    - name: Copy ssl certificate
+      copy:
+        src: ssl/ssl_tmp/server.crt
+        dest: "{{ ssl_path }}"
+      notify: Restart Nginx
+
+    - name: Copy ssl key
+      copy:
+        src: ssl/ssl_tmp/server.key
+        dest: "{{ ssl_path }}"
+      notify: Restart Nginx
+
+    - name: Copy index.html
+      copy:
+        src: ./html/index.html
+        dest: "{{ web_root }}"
+      notify: Restart Nginx
+
+    # Это пригодилось мне, что бы настроить доступ по https к сайту (актуально для Red Hat)
+    - name: disabling SElinux
+      shell: chcon -R -t httpd_sys_content_t "{{ ssl_path}}"
+      notify: Restart Nginx
+
+  handlers:
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
+
